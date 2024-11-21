@@ -7,10 +7,11 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Optional, Type
 
-import lit_gpt.model
 import torch
-from lit_gpt.utils import find_multiple
 from typing_extensions import Self
+
+import samba_pytorch.samba
+from samba_pytorch.utils import find_multiple
 
 
 @dataclass
@@ -101,17 +102,17 @@ class Config:
     @property
     def mlp_class(self) -> Type:
         # `self._mlp_class` cannot be the type to keep the config json serializable
-        return getattr(lit_gpt.model, self._mlp_class)
+        return getattr(samba_pytorch.samba, self._mlp_class)
 
     @property
     def norm_class(self) -> Type:
         # `self._norm_class` cannot be the type to keep the config json serializable
         if self._norm_class == "RMSNorm":
-            from lit_gpt.rmsnorm import RMSNorm
+            from samba_pytorch.modules.rmsnorm import RMSNorm
 
             return RMSNorm
         elif self._norm_class == "FusedRMSNorm":
-            from lit_gpt.rmsnorm import FusedRMSNorm
+            from samba_pytorch.modules.rmsnorm import FusedRMSNorm
 
             return FusedRMSNorm
         return getattr(torch.nn, self._norm_class)

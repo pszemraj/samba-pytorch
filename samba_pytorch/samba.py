@@ -10,13 +10,9 @@ from typing import Any, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from lit_gpt.config import Config
 from torch import Tensor
 from typing_extensions import Self
 from xformers.ops import SwiGLU
-
-from .fused_rotary_embedding import apply_rotary_emb_func
-from .mamba_simple import Mamba
 
 try:
     from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
@@ -25,8 +21,11 @@ except ImportError:
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 
-from .gla import GatedLinearAttention
-from .multiscale_retention import MultiScaleRetention
+from samba_pytorch.config import Config
+from samba_pytorch.modules.fused_rotary_embedding import apply_rotary_emb_func
+from samba_pytorch.modules.gla import GatedLinearAttention
+from samba_pytorch.modules.mamba_simple import Mamba
+from samba_pytorch.modules.multiscale_retention import MultiScaleRetention
 
 RoPECache = Tuple[torch.Tensor, torch.Tensor]
 KVCache = Tuple[torch.Tensor, torch.Tensor]
