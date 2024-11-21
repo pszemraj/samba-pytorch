@@ -6,20 +6,21 @@
 
 """Utility functions for training and inference."""
 
+import csv
+import os
 import pickle
 import sys
 import warnings
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from functools import partial
 from io import BytesIO
 from pathlib import Path
-from types import MethodType
-from typing import Any, Dict, List, Mapping, Optional, Type, TypeVar, Union
+from typing import Any, Dict, List, Mapping, Optional, TypeVar, Union
 
 import torch
 import torch.nn as nn
 import torch.utils._device
-from lightning.fabric.loggers import CSVLogger
 from torch.serialization import normalize_storage_type
 
 
@@ -471,10 +472,99 @@ class incremental_save:
         self.zipfile.write_end_of_file()
 
 
+class FileSystem:
+    """Basic filesystem interface that can be extended for different storage backends."""
+
+    def open(self, path: str, mode: str, newline: str = "") -> Any:
+        return open(path, mode, newline=newline)
+
+    def exists(self, path: str) -> bool:
+        return os.path.exists(path)
+
+    def makedirs(self, path: str, exist_ok: bool = True) -> None:
+        os.makedirs(path, exist_ok=exist_ok)
+
+
+@dataclass
+class Experiment:
+    """Handles the actual logging of metrics to CSV."""
+
+    metrics_file_path: str
+    metrics: List[Dict[str, Any]] = field(default_factory=list)
+    _fs: FileSystem = field(default_factory=FileSystem)
+
+    def log_metrics(self, metrics: Dict[str, Any]) -> None:
+        """Log a dictionary of metrics."""
+        self.metrics.append(metrics)
+
+    def save(self) -> None:
+        """Save metrics to CSV file."""
+        if not self.metrics:
+            return
+
+        # Ensure directory exists
+        dir_path = os.path.dirname(self.metrics_file_path)
+        if dir_path:
+            self._fs.makedirs(dir_path)
+
+        # Get all possible keys from all metric dictionaries
+        keys = sorted({k for m in self.metrics for k in m})
+
+        with self._fs.open(self.metrics_file_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=keys)
+            writer.writeheader()
+            writer.writerows(self.metrics)
+
+
+class CSVLogger:
+    """Base CSV Logger class that can be extended for specific logging needs."""
+
+    def __init__(
+        self,
+        metrics_file_path: str,
+        fs: Optional[FileSystem] = None,
+        experiment_class: Optional[type] = None,
+    ):
+        self._fs = fs or FileSystem()
+        self.metrics_file_path = metrics_file_path
+        exp_class = experiment_class or Experiment
+        self.experiment = exp_class(metrics_file_path=metrics_file_path, _fs=self._fs)
+
+    def log_metrics(self, metrics: Dict[str, Any]) -> None:
+        """Log metrics to the experiment."""
+        self.experiment.log_metrics(metrics)
+
+    def save(self) -> None:
+        """Save the logged metrics to CSV."""
+        self.experiment.save()
+
+
+class StepCSVLogger(CSVLogger):
+    """CSV Logger that includes step numbers in metrics."""
+
+    def __init__(
+        self,
+        metrics_file_path: str,
+        initial_step: int = 0,
+        fs: Optional[FileSystem] = None,
+    ):
+        super().__init__(metrics_file_path, fs)
+        self.current_step = initial_step
+
+    def log_metrics(self, metrics: Dict[str, Any], step: Optional[int] = None) -> None:
+        """Log metrics with step number."""
+        if step is not None:
+            self.current_step = step
+
+        metrics_with_step = {"step": self.current_step, **metrics}
+        super().log_metrics(metrics_with_step)
+        self.current_step += 1
+
+
 T = TypeVar("T")
 
 
-def step_csv_logger(*args: Any, cls: Type[T] = CSVLogger, **kwargs: Any) -> T:
+def step_csv_logger(*args: Any, cls=CSVLogger, **kwargs: Any) -> T:
     logger = cls(*args, **kwargs)
 
     def merge_by(dicts, key):
@@ -498,8 +588,6 @@ def step_csv_logger(*args: Any, cls: Type[T] = CSVLogger, **kwargs: Any) -> T:
             writer = csv.DictWriter(f, fieldnames=keys)
             writer.writeheader()
             writer.writerows(metrics)
-
-    logger.experiment.save = MethodType(save, logger.experiment)
 
     return logger
 
