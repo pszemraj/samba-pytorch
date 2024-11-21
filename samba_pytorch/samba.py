@@ -13,6 +13,7 @@ import torch.nn as nn
 from torch import Tensor
 from typing_extensions import Self
 from xformers.ops import SwiGLU
+from rotary_embedding_torch import RotaryEmbedding
 
 try:
     from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
@@ -22,10 +23,11 @@ from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 
 from samba_pytorch.config import Config
-from samba_pytorch.modules.fused_rotary_embedding import apply_rotary_emb_func
+
 from samba_pytorch.modules.gla import GatedLinearAttention
 from samba_pytorch.modules.mamba_simple import Mamba
 from samba_pytorch.modules.multiscale_retention import MultiScaleRetention
+
 
 RoPECache = Tuple[torch.Tensor, torch.Tensor]
 KVCache = Tuple[torch.Tensor, torch.Tensor]
@@ -33,6 +35,7 @@ KVCache = Tuple[torch.Tensor, torch.Tensor]
 
 def create_block(
     d_model,
+    rotary_emb,  # Added rotary_emb parameter
     ssm_cfg=None,
     norm_epsilon=1e-5,
     rms_norm=False,
@@ -45,7 +48,9 @@ def create_block(
     if ssm_cfg is None:
         ssm_cfg = {}
     factory_kwargs = {"device": device, "dtype": dtype}
-    mixer_cls = partial(Mamba, layer_idx=layer_idx, **ssm_cfg, **factory_kwargs)
+    mixer_cls = partial(
+        Mamba, layer_idx=layer_idx, rotary_emb=rotary_emb, **ssm_cfg, **factory_kwargs
+    )  # Passed rotary_emb
     norm_cls = partial(
         nn.LayerNorm if not rms_norm else RMSNorm, eps=norm_epsilon, **factory_kwargs
     )
@@ -55,6 +60,7 @@ def create_block(
         norm_cls=norm_cls,
         fused_add_norm=fused_add_norm,
         residual_in_fp32=residual_in_fp32,
+        rotary_emb=rotary_emb,  # Passed rotary_emb
     )
     block.layer_idx = layer_idx
     return block
@@ -66,6 +72,12 @@ class GPT(nn.Module):
         factory_kwargs = {"device": "cuda", "dtype": torch.float32}
         assert config.padded_vocab_size is not None
         self.config = config
+
+        self.rotary_emb = RotaryEmbedding(
+            dim=int(config.rotary_percentage * config.head_size), # TODO: validate
+            use_xpos=getattr(config, "use_xpos", False),
+            interpolate_factor=getattr(config, "interpolate_factor", 1.0),
+        )
 
         self.lm_head = nn.Linear(config.n_embd, config.padded_vocab_size, bias=False)
         if config.mamba:
@@ -81,6 +93,7 @@ class GPT(nn.Module):
                     h=nn.ModuleList(
                         create_block(
                             config.n_embd,
+                            rotary_emb=self.rotary_emb,  # TODO: is this needed?
                             ssm_cfg=None,
                             norm_epsilon=config.norm_eps,
                             rms_norm=config.rms_norm,
@@ -103,13 +116,13 @@ class GPT(nn.Module):
             self.transformer = nn.ModuleDict(
                 dict(
                     wte=nn.Embedding(config.padded_vocab_size, config.n_embd),
-                    h=nn.ModuleList(Block(config, i) for i in range(config.n_layer)),
+                    h=nn.ModuleList(
+                        Block(config, i, self.rotary_emb) for i in range(config.n_layer)
+                    ),
                     ln_f=config.norm_class(config.n_embd, eps=config.norm_eps),
                 )
             )
 
-        self.rope_cache: Optional[RoPECache] = None
-        self.mask_cache: Optional[torch.Tensor] = None
         self.kv_caches: List[KVCache] = []
         self.max_len = self.config.block_size
         self.mamba_init = config.mamba or config.mamba_init
@@ -169,10 +182,7 @@ class GPT(nn.Module):
     def reset_cache(self) -> None:
         self.max_len = self.config.block_size
         self.kv_caches.clear()
-        if self.mask_cache is not None and self.mask_cache.device.type == "xla":
-            # https://github.com/Lightning-AI/lit-gpt/pull/83#issuecomment-1558150179
-            self.rope_cache = None
-            self.mask_cache = None
+        # (Removed cache reset for rope_cache and mask_cache)
 
     def forward(
         self,
@@ -221,37 +231,24 @@ class GPT(nn.Module):
             assert (
                 max_seq_length >= T
             ), f"Cannot forward sequence of length {T}, max seq length is only {max_seq_length}"
-        # assert max_seq_length <= block_size, f"Cannot attend to {max_seq_length}, block size is only {block_size}"
-        # assert block_size >= T, f"Cannot forward sequence of length {T}, block size is only {block_size}"
-        if not self.config.nope:
-            if self.rope_cache is None:
-                self.rope_cache = self.build_rope_cache(idx, self.max_len)
-            elif T > self.max_len:
-                self.max_len = T
-                self.rope_cache = self.build_rope_cache(idx, self.max_len)
-            cos, sin = self.rope_cache
-        # passing `attn_mask` to SDPA downgrades it to use the inefficient implementation. since we only need the mask
-        # for the kv-cache support (only during inference), we only create it in that situation
-        # this will be resolved by https://github.com/pytorch/pytorch/issues/96099
-        if use_kv_cache and self.mask_cache is None:
-            self.mask_cache = self.build_mask_cache(idx)
 
+        # Similarly, mask_cache is removed. TODO: validate
+
+        # Create mask if using kv_cache
         if use_kv_cache:
-            if not self.config.nope:
-                cos = cos.index_select(0, input_pos)
-                sin = sin.index_select(0, input_pos)
-            mask = self.mask_cache.index_select(2, input_pos)
+            mask = self.build_mask_cache(idx).index_select(2, input_pos)
             mask = mask[:, :, :, :max_seq_length]
         else:
-            if not self.config.nope:
-                cos = cos[:T]
-                sin = sin[:T]
             mask = None
+
+        # Initialize rotary embedding variables
         if self.config.nope:
-            rope = None
+            rope = None # Set rope to None if config.nope
         else:
-            rope = (cos, sin)
-        # forward the model itself
+            # Using rotary_emb to rotate queries and keys in attention modules
+            rope = self.rotary_emb
+
+        # Forward the model itself
         x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
 
         if not use_kv_cache:
@@ -263,8 +260,11 @@ class GPT(nn.Module):
                     x, max_seq_length, None
                 )
             else:
+                # rotary_emb handles the rotations
                 self.kv_caches = self.kv_caches or self.build_kv_caches(
-                    x, max_seq_length, cos.size(-1) * 2
+                    x,
+                    max_seq_length,
+                    None,  # rotary_emb handle offsets
                 )
             for i, block in enumerate(self.transformer.h):
                 x, self.kv_caches[i] = block(
@@ -277,15 +277,6 @@ class GPT(nn.Module):
     @classmethod
     def from_name(cls, name: str, **kwargs: Any) -> Self:
         return cls(Config.from_name(name, **kwargs))
-
-    def build_rope_cache(self, idx: torch.Tensor, seq_len: int) -> RoPECache:
-        return build_rope_cache(
-            seq_len=seq_len,
-            n_elem=int(self.config.rotary_percentage * self.config.head_size),
-            dtype=torch.bfloat16,
-            device=idx.device,
-            condense_ratio=self.config.condense_ratio,
-        )
 
     def build_mask_cache(self, idx: torch.Tensor) -> torch.Tensor:
         ones = torch.ones(
@@ -300,22 +291,13 @@ class GPT(nn.Module):
     ) -> List[KVCache]:
         B = idx.size(0)
         heads = 1 if self.config.n_query_groups == 1 else self.config.n_query_groups
-        if rope_cache_length is not None:
-            k_cache_shape = (
-                B,
-                max_seq_length,
-                heads,
-                rope_cache_length
-                + self.config.head_size
-                - int(self.config.rotary_percentage * self.config.head_size),
-            )
-        else:
-            k_cache_shape = (
-                B,
-                max_seq_length,
-                heads,
-                self.config.head_size,
-            )
+        # rotary_emb handles the rope_cache_length, thus set to None or appropriately
+        k_cache_shape = (
+            B,
+            max_seq_length,
+            heads,
+            self.config.head_size,
+        )
         v_cache_shape = (B, max_seq_length, heads, self.config.head_size)
         device = idx.device
         return [
@@ -328,7 +310,9 @@ class GPT(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, config: Config, layer_idx: int) -> None:
+    def __init__(
+        self, config: Config, layer_idx: int, rotary_emb: RotaryEmbedding
+    ) -> None:
         super().__init__()
         self.norm_1 = config.norm_class(config.n_embd, eps=config.norm_eps)
         if config.attn_layer_pos is not None:
@@ -371,6 +355,7 @@ class Block(nn.Module):
                 config,
                 n_embd=config.n_embd,
                 layer_idx=layer_idx,
+                rotary_emb=rotary_emb,
             )
 
         if (
@@ -388,7 +373,7 @@ class Block(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        rope: RoPECache,
+        rotary_emb: Optional[RotaryEmbedding],
         max_seq_length: int,
         mask: Optional[torch.Tensor] = None,
         input_pos: Optional[torch.Tensor] = None,
@@ -404,7 +389,7 @@ class Block(nn.Module):
             h, _, new_kv_cache = self.attn(n_1)
         else:
             h, new_kv_cache = self.attn(
-                n_1, rope, max_seq_length, mask, input_pos, kv_cache
+                n_1, rotary_emb, max_seq_length, mask, input_pos, kv_cache
             )
         if self.config.parallel_residual:
             assert self.config.shared_attention_norm
@@ -495,9 +480,15 @@ class MBlock(nn.Module):
 
 class CausalSelfAttention(nn.Module):
     def __init__(
-        self, config: Config, layer_idx: int, n_embd: int, head_size=None
+        self,
+        config: Config,
+        layer_idx: int,
+        n_embd: int,
+        rotary_emb: RotaryEmbedding,
+        head_size=None,
     ) -> None:
         super().__init__()
+        self.rotary_emb = rotary_emb  # Store rotary_emb
         self.local = layer_idx % config.full_per_layer < config.full_per_layer - 1
         if head_size is not None:
             self.head_size = head_size
@@ -508,9 +499,9 @@ class CausalSelfAttention(nn.Module):
             self.n_head = config.n_head
             self.n_query_groups = config.n_query_groups
         shape = (self.n_head + 2 * self.n_query_groups) * self.head_size
-        # key, query, value projections for all heads, but in a batch
+        # Key, query, value projections for all heads, but in a batch
         self.attn = nn.Linear(n_embd, shape, bias=config.bias)
-        # output projection
+        # Output projection
         self.proj = nn.Linear(n_embd, n_embd, bias=config.bias)
         self.config = config
         self.sc = config.sc_attn
@@ -546,7 +537,7 @@ class CausalSelfAttention(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        rope: RoPECache,
+        rotary_emb: Optional[RotaryEmbedding],
         max_seq_length: int,
         mask: Optional[torch.Tensor] = None,
         input_pos: Optional[torch.Tensor] = None,
@@ -554,18 +545,17 @@ class CausalSelfAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[KVCache]]:
         B, T, C = (
             x.size()
-        )  # batch size, sequence length, embedding dimensionality (n_embd)
+        )  # Batch size, sequence length, embedding dimensionality (n_embd)
 
         qkv = self.attn(x)
-        # assemble into a number of query groups to support MHA, MQA and GQA together (see `config.n_query_groups`)
+        # Assemble into a number of query groups to support MHA, MQA, and GQA together
         q_per_kv = self.n_head // self.n_query_groups
-        total_qkv = q_per_kv + 2  # each group has 1+ queries, 1 key, and 1 value
+        total_qkv = q_per_kv + 2  # Each group has 1+ queries, 1 key, and 1 value
         qkv = qkv.view(
             B, T, self.n_query_groups, total_qkv, self.head_size
         )  # (B, T, n_query_groups, total_qkv, hs)
-        # qkv = qkv.permute(0, 2, 3, 1, 4)  # (B, n_query_groups, total_qkv, T, hs)
 
-        # split batched computation into three
+        # Split batched computation into three
         q, k, v = qkv.split((q_per_kv, 1, 1), dim=-2)
         q = q.reshape(B, T, -1)  # (B, T, nh_q, hs)
         k = k.reshape(B, T, -1)
@@ -594,20 +584,18 @@ class CausalSelfAttention(nn.Module):
         k = k.reshape(B, T, -1, self.head_size)
         v = v.reshape(B, T, -1, self.head_size)
 
-        if not self.config.nope:
-            cos, sin = rope
-            # apply rope in fp32 significanly stabalize training
-            # fused rope expect (batch_size, seqlen, nheads, headdim)
-            q = apply_rotary_emb_func(q, cos, sin, False, True)
-            k = apply_rotary_emb_func(k, cos, sin, False, True)
+        if not self.config.nope and rotary_emb is not None:
+            # Apply rotary embeddings using rotary-embedding-torch
+            q = rotary_emb.rotate_queries_or_keys(q)
+            k = rotary_emb.rotate_queries_or_keys(k)
 
         if kv_cache is not None:
             cache_k, cache_v = kv_cache
             cache_k, cache_v = cache_k.to(dtype=k.dtype), cache_v.to(dtype=v.dtype)
-            # check if reached token limit
+            # Check if reached token limit
             if input_pos[-1] >= max_seq_length:
                 input_pos = torch.tensor(max_seq_length - 1, device=input_pos.device)
-                # shift 1 position to the left
+                # Shift 1 position to the left
                 cache_k = torch.roll(cache_k, -1, dims=1)
                 cache_v = torch.roll(cache_v, -1, dims=1)
 
@@ -617,9 +605,9 @@ class CausalSelfAttention(nn.Module):
 
         y = self.scaled_dot_product_attention(q, k, v, mask=mask)
 
-        y = y.reshape(B, T, -1)  # re-assemble all head outputs side by side
+        y = y.reshape(B, T, -1)  # Re-assemble all head outputs side by side
 
-        # output projection
+        # Output projection
         y = self.proj(y)
         return y, kv_cache
 
@@ -682,35 +670,3 @@ class LLaMAMLP(nn.Module):
         return x
 
 
-def build_rope_cache(
-    seq_len: int,
-    n_elem: int,
-    dtype: torch.dtype,
-    device: torch.device,
-    base: int = 10000,
-    condense_ratio: int = 1,
-) -> RoPECache:
-    """Enhanced Transformer with Rotary Position Embedding.
-
-    Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
-    transformers/rope/__init__.py. MIT License:
-    https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
-    """
-    # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
-    theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, device=device) / n_elem))
-
-    # Create position indexes `[0, 1, ..., seq_len - 1]`
-    seq_idx = torch.arange(seq_len, device=device) / condense_ratio
-
-    # Calculate the product of position index and $\theta_i$
-    idx_theta = torch.outer(seq_idx, theta)
-
-    cos, sin = torch.cos(idx_theta), torch.sin(idx_theta)
-
-    # added by peiyuan to ensure same data type with q, k, to use fused rotary embedding
-    if dtype == torch.bfloat16:
-        return cos.bfloat16(), sin.bfloat16()
-    # this is to mimic the behaviour of complex32, else we will get different results
-    if dtype in (torch.float16, torch.bfloat16, torch.int8):
-        return cos.half(), sin.half()
-    return cos, sin
