@@ -4,6 +4,42 @@
 
 This aims to be a simpler implementation of the [original repo](https://github.com/microsoft/Samba).
 
+## Installation
+
+> [!TIP]
+> While the `pip install` command _should_ install all deps and the package, in practice some of the more CUDA-heavy deps are better installed separately from source. See section below for more details.
+
+```bash
+git clone https://github.com/pszemraj/samba-pytorch.git
+cd samba-pytorch
+pip install -e .
+```
+
+### Installing custom kernel packages first
+
+After installing `torch`, `xformers`, and `flash-attn`, you may want to install `mamba-ssm`, `causal-conv1d`, and `fla` from source:
+
+```bash
+pip install --upgrade pip ninja
+pip install git+https://github.com/state-spaces/mamba.git --no-build-isolation
+pip install git+https://github.com/Dao-AILab/causal-conv1d.git --no-build-isolation
+pip install git+https://github.com/sustcsonglin/flash-linear-attention@98c176e --no-build-isolation
+```
+
+Then, clone this repo and run commands as above.
+
+## Usage
+
+A basic example of creating a random model from a named config:
+
+```python
+from samba_pytorch import Config, GPT
+cfg = Config.from_name('Samba_421M_1k_window')
+print*(cfg)
+model = GPT(cfg)
+model
+```
+
 ## repo structure
 
 ```text

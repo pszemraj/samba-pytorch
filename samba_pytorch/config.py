@@ -3,14 +3,13 @@
 
 # Copyright Lightning AI. Licensed under the Apache License 2.0,
 # see LICENSE file at https://github.com/Lightning-AI/litgpt/blob/main/LICENSE
-
+import warnings
 from dataclasses import dataclass
 from typing import Any, Literal, Optional, Type
 
 import torch
 from typing_extensions import Self
 
-import samba_pytorch.samba
 from samba_pytorch.utils import find_multiple
 
 
@@ -101,8 +100,9 @@ class Config:
 
     @property
     def mlp_class(self) -> Type:
+        from samba_pytorch import samba
         # `self._mlp_class` cannot be the type to keep the config json serializable
-        return getattr(samba_pytorch.samba, self._mlp_class)
+        return getattr(samba, self._mlp_class)
 
     @property
     def norm_class(self) -> Type:
@@ -112,9 +112,12 @@ class Config:
 
             return RMSNorm
         elif self._norm_class == "FusedRMSNorm":
-            from samba_pytorch.modules.rmsnorm import FusedRMSNorm
+            warnings.warn(
+                "FusedRMSNorm has been removed, using standard torch RMSNorm instead"
+            )
+            from samba_pytorch.modules.rmsnorm import RMSNorm
 
-            return FusedRMSNorm
+            return RMSNorm
         return getattr(torch.nn, self._norm_class)
 
 
@@ -133,7 +136,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -150,7 +153,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -168,7 +171,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         full_per_layer=2,
         _mlp_class="LLaMAMLP",
@@ -187,7 +190,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -206,7 +209,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -225,7 +228,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -244,7 +247,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -263,7 +266,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -280,7 +283,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -298,7 +301,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -316,7 +319,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -335,7 +338,7 @@ Samba = [
         parallel_residual=True,
         shared_attention_norm=True,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -354,7 +357,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -373,7 +376,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -393,7 +396,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -412,7 +415,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -431,7 +434,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -450,7 +453,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -469,7 +472,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -489,7 +492,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -510,7 +513,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -531,7 +534,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -552,7 +555,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4608,
@@ -573,7 +576,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -592,7 +595,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -612,7 +615,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -632,7 +635,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=4096,
@@ -653,7 +656,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=6144,
@@ -673,7 +676,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=6144,
@@ -693,7 +696,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=6144,
@@ -712,7 +715,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=6144,
@@ -731,7 +734,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=6144,
@@ -750,7 +753,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=6144,
@@ -769,7 +772,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=6144,
@@ -787,7 +790,7 @@ Samba = [
         rotary_percentage=1.0,
         parallel_residual=False,
         bias=False,
-        _norm_class="FusedRMSNorm",
+        _norm_class="RMSNorm",
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=8192,
