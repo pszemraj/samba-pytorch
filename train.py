@@ -1,4 +1,5 @@
 import gzip
+import json
 import random
 from pathlib import Path
 
@@ -214,7 +215,8 @@ for batch_num in tqdm.tqdm(range(NUM_BATCHES), mininterval=5.0, desc="Training")
 
                 # Save both model weights and config
                 torch.save(model.state_dict(), out_dir / "best.pt")
-                torch.save(config.__dict__, out_dir / "config.json")
+                with open(out_dir / "config.json", "w") as f:
+                    json.dump(config.__dict__, f, indent=2)
 
                 last_checkpoint_step = batch_num
 
