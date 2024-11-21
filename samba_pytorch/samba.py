@@ -5,29 +5,28 @@
 # see LICENSE file at https://github.com/Lightning-AI/litgpt/blob/main/LICENSE
 
 import math
+from functools import partial
 from typing import Any, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from typing_extensions import Self
 from lit_gpt.config import Config
-from xformers.ops import SwiGLU
-from .fused_rotary_embedding import apply_rotary_emb_func
 from torch import Tensor
+from typing_extensions import Self
+from xformers.ops import SwiGLU
+
+from .fused_rotary_embedding import apply_rotary_emb_func
 from .mamba_simple import Mamba
-from functools import partial
 
 try:
     from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
 except ImportError:
     RMSNorm, layer_norm_fn, rms_norm_fn = None, None, None
+from causal_conv1d import causal_conv1d_fn
+from einops import rearrange
+
 from .gla import GatedLinearAttention
 from .multiscale_retention import MultiScaleRetention
-from einops import rearrange
-import torch.nn.functional as F
-
-from causal_conv1d import causal_conv1d_fn
-
 
 RoPECache = Tuple[torch.Tensor, torch.Tensor]
 KVCache = Tuple[torch.Tensor, torch.Tensor]
@@ -396,7 +395,6 @@ class Block(nn.Module):
         input_pos: Optional[torch.Tensor] = None,
         kv_cache: Optional[KVCache] = None,
     ) -> Tuple[torch.Tensor, Optional[KVCache]]:
-
         n_1 = self.norm_1(x)
 
         if self.use_mamba:

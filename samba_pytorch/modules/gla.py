@@ -13,15 +13,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from fla.modules import FusedRMSNormSwishGate, RMSNorm, ShortConvolution
+from fla.ops.gla import chunk_gla, fused_chunk_gla, fused_recurrent_gla
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache
 
-from fla.modules import FusedRMSNormSwishGate, RMSNorm, ShortConvolution
-from fla.ops.gla import chunk_gla, fused_chunk_gla, fused_recurrent_gla
-
 
 class GatedLinearAttention(nn.Module):
-
     def __init__(
         self,
         mode: str = "fused_chunk",

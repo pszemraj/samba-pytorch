@@ -12,9 +12,6 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 from einops import rearrange
-from transformers.activations import ACT2FN
-from transformers.cache_utils import Cache
-
 from fla.modules import FusedRMSNormSwishGate, RMSNorm, ShortConvolution
 from fla.modules.rotary import RotaryEmbedding
 from fla.ops.retention import (
@@ -23,10 +20,11 @@ from fla.ops.retention import (
     fused_recurrent_retention,
     parallel_retention,
 )
+from transformers.activations import ACT2FN
+from transformers.cache_utils import Cache
 
 
 class MultiScaleRetention(nn.Module):
-
     def __init__(
         self,
         mode: str = "fused_chunk",
