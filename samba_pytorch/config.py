@@ -10,7 +10,6 @@ from typing import Any, Literal, Optional, Type
 import torch
 from typing_extensions import Self
 
-import samba_pytorch.samba
 from samba_pytorch.utils import find_multiple
 
 
@@ -101,8 +100,9 @@ class Config:
 
     @property
     def mlp_class(self) -> Type:
+        from samba_pytorch import samba
         # `self._mlp_class` cannot be the type to keep the config json serializable
-        return getattr(samba_pytorch.samba, self._mlp_class)
+        return getattr(samba, self._mlp_class)
 
     @property
     def norm_class(self) -> Type:
