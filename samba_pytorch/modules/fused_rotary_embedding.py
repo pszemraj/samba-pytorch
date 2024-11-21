@@ -4,9 +4,10 @@
 # Copyright (c) 2023, Tri Dao.
 
 
-import rotary_emb
 import torch
 from einops import rearrange
+
+import samba_pytorch.modules.rotary as rotary_emb
 
 
 class ApplyRotaryEmb(torch.autograd.Function):
