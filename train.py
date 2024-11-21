@@ -85,22 +85,22 @@ def base_decoding(
     net,
     prompt: torch.Tensor,
     seq_len: int,
-    temperature=1.5,
+    temperature=1.3,
     min_p=1e-1,
 ):
+    B = prompt.size(0)  # Batch size
     prompt_seq_len, out = prompt.shape[-1], prompt.clone()
     sample_num_times = max(0, seq_len - prompt_seq_len)
 
     for _ in range(sample_num_times):
-        logits = net(out)
-        logits = logits[:, -1]
-
+        logits = net(out)[:, -1]  # Get last token logits [B, vocab_size]
         logits = min_p_filter(logits, min_p=min_p)
-        sample = gumbel_sample(logits, temperature=temperature, dim=-1)
 
-        out = torch.cat((out, sample[..., None]), dim=-1)
+        # Sample and reshape to [B, 1]
+        sample = gumbel_sample(logits, temperature=temperature, dim=-1).view(B, 1)
+        out = torch.cat([out, sample], dim=1)
 
-    return out[..., prompt_seq_len:]
+    return out[:, prompt_seq_len:]
 
 
 # Dataset preparation
