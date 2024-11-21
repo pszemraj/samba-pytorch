@@ -1,12 +1,13 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 from einops import rearrange
 from typing import Optional, Tuple, Union
+
 
 def maybe_align(x: torch.Tensor, alignment_in_bytes: int = 16) -> torch.Tensor:
     """Ensures memory alignment by cloning if necessary."""
     return x if x.data_ptr() % alignment_in_bytes == 0 else x.clone()
+
 
 def dropout_add_layer_norm(
     x0: torch.Tensor,
@@ -54,7 +55,7 @@ def dropout_add_layer_norm(
 
     # Apply row scaling if provided
     if rowscale is not None:
-        x0 = x0 * rearrange(rowscale, 'b -> b 1')
+        x0 = x0 * rearrange(rowscale, "b -> b 1")
 
     # Compute normalization (either LayerNorm or RMSNorm)
     if is_rms_norm:
@@ -74,10 +75,12 @@ def dropout_add_layer_norm(
         return output, mask
     return output
 
+
 class DropoutAddLayerNorm(nn.Module):
     """
     Module that combines dropout, residual connection, and layer normalization.
     """
+
     def __init__(
         self,
         hidden_size: int,
@@ -85,10 +88,10 @@ class DropoutAddLayerNorm(nn.Module):
         p: float = 0.0,
         eps: float = 1e-5,
         residual_in_fp32: bool = False,
-        device = None,
-        dtype = None,
+        device=None,
+        dtype=None,
     ):
-        factory_kwargs = {'device': device, 'dtype': dtype}
+        factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
         self.prenorm = prenorm
         self.p = p
@@ -101,7 +104,7 @@ class DropoutAddLayerNorm(nn.Module):
         self,
         x0: torch.Tensor,
         residual: Optional[torch.Tensor] = None,
-        rowscale: Optional[torch.Tensor] = None
+        rowscale: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         return dropout_add_layer_norm(
             x0,
@@ -112,7 +115,7 @@ class DropoutAddLayerNorm(nn.Module):
             self.eps,
             rowscale=rowscale,
             prenorm=self.prenorm,
-            residual_in_fp32=self.residual_in_fp32
+            residual_in_fp32=self.residual_in_fp32,
         )
 
     def reset_parameters(self):
@@ -120,20 +123,16 @@ class DropoutAddLayerNorm(nn.Module):
         nn.init.ones_(self.weight)
         nn.init.zeros_(self.bias)
 
+
 class RMSNorm(nn.Module):
     """
     Root Mean Square Layer Normalization.
 
     Implementation follows the paper: https://arxiv.org/abs/1910.07467
     """
-    def __init__(
-        self,
-        hidden_size: int,
-        eps: float = 1e-5,
-        device = None,
-        dtype = None
-    ):
-        factory_kwargs = {'device': device, 'dtype': dtype}
+
+    def __init__(self, hidden_size: int, eps: float = 1e-5, device=None, dtype=None):
+        factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
         self.weight = nn.Parameter(torch.ones(hidden_size, **factory_kwargs))
         self.eps = eps
@@ -145,11 +144,8 @@ class RMSNorm(nn.Module):
         """Reset parameters to default initialization."""
         nn.init.ones_(self.weight)
 
-def rms_norm(
-    x: torch.Tensor,
-    weight: torch.Tensor,
-    epsilon: float
-) -> torch.Tensor:
+
+def rms_norm(x: torch.Tensor, weight: torch.Tensor, epsilon: float) -> torch.Tensor:
     """
     Applies RMS normalization to the input tensor.
     """
