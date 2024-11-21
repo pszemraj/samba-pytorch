@@ -6,6 +6,9 @@ samba_pytorch/_version.py
 *.pyd
 *.pt*
 
+# outputs
+out/*
+
 # <<< END CUSTOM
 # Byte-compiled / optimized / DLL files
 __pycache__/
