@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samba_pytorch"
+dynamic = ["version"]
+description = "Minimal implementation of Samba by Microsoft in PyTorch"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Peter Szemraj", email = "peterszemraj+dev@gmail.com"},
+]
+dependencies = [
+    "einops>=0.3",
+    "fla @ git+https://github.com/sustcsonglin/flash-linear-attention@98c176e",
+    "flash-attn>=2.0.0.post1",
+    "mamba-ssm",
+    "numpy",
+    "sentencepiece",
+    "torch>=2.0.0",
+    "tqdm",
+    "transformers",
+]
+
+[tool.setuptools]
+packages = ["samba_pytorch"]
+
+[tool.setuptools_scm]
+write_to = "samba_pytorch/_version.py"
+version_scheme = "no-guess-dev"
+
+[project.urls]
+Homepage = "https://github.com/pszemraj/samba-pytorch"
+Repository = "https://github.com/pszemraj/samba-pytorch"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "ruff",
+    "isort",
+    "mypy",
+]
