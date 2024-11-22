@@ -6,15 +6,15 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-import tqdm
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
+from tqdm import trange
 
 from samba_pytorch import GPT, Config
 from samba_pytorch.utils import get_default_supported_precision
 
 # Constants
-NUM_BATCHES = int(1e5)
+NUM_BATCHES = int(5e4)
 BATCH_SIZE = 4
 GRAD_ACCUM_EVERY = 4
 LEARNING_RATE = 1e-3
@@ -166,12 +166,12 @@ print(f"Total parameters: {total_params:,}")
 optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, fused=torch.cuda.is_available())
 criterion = nn.CrossEntropyLoss()
 
-out_dir = _here / "out" / "samba"
+out_dir = _here / "out" / config.name
 best_loss = float("inf")
 last_checkpoint_step = -1
 
 # Training loop
-for batch_num in tqdm.tqdm(range(NUM_BATCHES), mininterval=5.0, desc="Training"):
+for batch_num in trange(NUM_BATCHES, mininterval=10.0, desc="training"):
     model.train()
     optimizer.zero_grad()
 
