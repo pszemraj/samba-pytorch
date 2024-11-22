@@ -175,6 +175,8 @@ for batch_num in tqdm.tqdm(range(NUM_BATCHES), mininterval=5.0, desc="Training")
     model.train()
     optimizer.zero_grad()
 
+    accumulated_loss = 0.0  # track loss for reporting
+
     for _ in range(GRAD_ACCUM_EVERY):
         data = next(train_loader)
         inputs = data[:, :-1]
@@ -182,15 +184,14 @@ for batch_num in tqdm.tqdm(range(NUM_BATCHES), mininterval=5.0, desc="Training")
 
         with torch.autocast(device_type="cuda", dtype=DTYPE, enabled=USE_AMP):
             logits = model(inputs)
-            loss = (
-                criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
-                / GRAD_ACCUM_EVERY
-            )
-
+            loss = criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
+            accumulated_loss += loss.item()  # Accumulate unscaled loss
+            loss = loss / GRAD_ACCUM_EVERY  # Scale loss for backpropagation
             loss.backward()
 
     if batch_num % PRINT_EVERY == 0:
-        print(f"Loss at step {batch_num}: {loss.item():.4f}")
+        average_loss = accumulated_loss / GRAD_ACCUM_EVERY
+        print(f"Loss at step {batch_num}: {average_loss:.4f}")
 
     optimizer.step()
     optimizer.zero_grad()
@@ -207,10 +208,10 @@ for batch_num in tqdm.tqdm(range(NUM_BATCHES), mininterval=5.0, desc="Training")
             )
             print(f"Validation Loss at step {batch_num}: {val_loss.item():.4f}")
 
-            if loss < best_loss and batch_num > 0:
-                best_loss = loss
+            if val_loss.item() < best_loss and batch_num > 0:
+                best_loss = val_loss.item()
                 out_dir.mkdir(exist_ok=True, parents=True)
-                print(f"Best loss updated: {best_loss.item():.3f}")
+                print(f"Best val_loss updated: {best_loss:.3f}")
                 print(f"Saving model to {str(out_dir)}")
 
                 # Save both model weights and config
