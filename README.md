@@ -7,7 +7,7 @@ This aims to be a simpler implementation of the [original repo](https://github.c
 ## Installation
 
 > [!TIP]
-> While the `pip install` command _should_ install all deps and the package, in practice some of the more CUDA-heavy deps are better installed separately from source. See section below for more details.
+> The pip install command _should_ install all dependencies and the package, but some CUDA-heavy dependencies are better installed separately. See below for more details.
 
 ```bash
 git clone https://github.com/pszemraj/samba-pytorch.git
@@ -39,6 +39,16 @@ print*(cfg)
 model = GPT(cfg)
 model
 ```
+
+### Training
+
+A minimalist training script for a character-level language model on enwiki8:
+
+```python
+python train.py
+```
+
+Credit to [nGPT-pytorch](https://github.com/lucidrains/nGPT-pytorch) for the enwik8 data set and the training script, which has been adapted for this repo.
 
 ## repo structure
 
