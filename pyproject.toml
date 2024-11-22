@@ -19,6 +19,7 @@ dependencies = [
     "flash-attn>=2.0.0.post1",
     "mamba-ssm",
     "numpy",
+    "rotary-embedding-torch",
     "sentencepiece",
     "torch>=2.0.0",
     "tqdm",

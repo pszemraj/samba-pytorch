@@ -101,6 +101,7 @@ class Config:
     @property
     def mlp_class(self) -> Type:
         from samba_pytorch import samba
+
         # `self._mlp_class` cannot be the type to keep the config json serializable
         return getattr(samba, self._mlp_class)
 
