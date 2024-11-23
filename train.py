@@ -161,7 +161,7 @@ config = Config(
 )
 
 model = GPT(config).to(device)
-model_summary(model)
+model_summary(model, max_depth=5)
 
 # Optimizer and loss function
 optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, fused=torch.cuda.is_available())
