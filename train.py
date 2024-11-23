@@ -237,4 +237,4 @@ for batch_num in trange(NUM_BATCHES, mininterval=10.0, desc="training"):
 
 print("Training complete")
 print(f"Last checkpoint step:\t{last_checkpoint_step}")
-print(f"Best loss:\t{best_loss.item():.3f}")
+print(f"Best loss:\t{best_loss:.3f}")
