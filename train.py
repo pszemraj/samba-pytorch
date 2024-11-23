@@ -11,7 +11,11 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
 
 from samba_pytorch import GPT, Config
-from samba_pytorch.utils import get_default_supported_precision
+from samba_pytorch.utils import (
+    activate_tf32_if_available,
+    get_default_supported_precision,
+    model_summary,
+)
 
 # Constants
 NUM_BATCHES = int(5e4)
@@ -35,7 +39,7 @@ DTYPE = (
     if "16" in PRECISION
     else torch.float32
 )
-
+activate_tf32_if_available()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _here = Path(__file__).resolve().parent
 
@@ -157,10 +161,7 @@ config = Config(
 )
 
 model = GPT(config).to(device)
-
-# Print model summary
-total_params = sum(p.numel() for p in model.parameters())
-print(f"Total parameters: {total_params:,}")
+model_summary(model)
 
 # Optimizer and loss function
 optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, fused=torch.cuda.is_available())
