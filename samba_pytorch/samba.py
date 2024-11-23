@@ -5,15 +5,16 @@
 # see LICENSE file at https://github.com/Lightning-AI/litgpt/blob/main/LICENSE
 
 import math
+import warnings
 from functools import partial
 from typing import Any, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+from rotary_embedding_torch import RotaryEmbedding
 from torch import Tensor
 from typing_extensions import Self
 from xformers.ops import SwiGLU
-from rotary_embedding_torch import RotaryEmbedding
 
 try:
     from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
@@ -22,12 +23,12 @@ except ImportError:
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 
-from samba_pytorch.config import Config
+warnings.filterwarnings("ignore", category=FutureWarning, module="fla.ops")
 
-from samba_pytorch.modules.gla import GatedLinearAttention
-from samba_pytorch.modules.mamba_simple import Mamba
-from samba_pytorch.modules.multiscale_retention import MultiScaleRetention
-
+from samba_pytorch.config import Config  # noqa
+from samba_pytorch.modules.gla import GatedLinearAttention  # noqa
+from samba_pytorch.modules.mamba_simple import Mamba  # noqa
+from samba_pytorch.modules.multiscale_retention import MultiScaleRetention  # noqa
 
 RoPECache = Tuple[torch.Tensor, torch.Tensor]
 KVCache = Tuple[torch.Tensor, torch.Tensor]
@@ -74,7 +75,7 @@ class GPT(nn.Module):
         self.config = config
 
         self.rotary_emb = RotaryEmbedding(
-            dim=int(config.rotary_percentage * config.head_size), # TODO: validate
+            dim=int(config.rotary_percentage * config.head_size),  # TODO: validate
             use_xpos=getattr(config, "use_xpos", False),
             interpolate_factor=getattr(config, "interpolate_factor", 1.0),
         )
@@ -243,7 +244,7 @@ class GPT(nn.Module):
 
         # Initialize rotary embedding variables
         if self.config.nope:
-            rope = None # Set rope to None if config.nope
+            rope = None  # Set rope to None if config.nope
         else:
             # Using rotary_emb to rotate queries and keys in attention modules
             rope = self.rotary_emb
@@ -668,5 +669,3 @@ class LLaMAMLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.swiglu(x)
         return x
-
-
