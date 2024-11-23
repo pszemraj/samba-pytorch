@@ -15,7 +15,60 @@ from samba_pytorch.utils import find_multiple
 
 @dataclass
 class Config:
-    org: str = "Lightning-AI"
+    """Configuration class for SAMBA (Simple Hybrid State Space Models) architecture.
+
+    The SAMBA architecture combines Mamba (selective state space model) with
+    Sliding Window Attention (SWA) and Multi-Layer Perceptrons (MLP) in a layer-wise fashion.
+
+    Attributes:
+        org (str): Organization name, defaults to "samba-pytorch"
+        name (str): Model name, defaults to "lit-GPT"
+        block_size (int): Maximum sequence length for the model, defaults to 4096
+        vocab_size (int): Size of the vocabulary, defaults to 50254
+        padding_multiple (int): Padding factor for vocab size optimization, defaults to 512
+        padded_vocab_size (Optional[int]): Actual padded vocabulary size after adjustment
+        n_layer (int): Number of transformer layers, defaults to 16
+        n_head (int): Number of attention heads, defaults to 32
+        n_embd (int): Embedding dimension / hidden state size, defaults to 4096
+        rotary_percentage (float): Fraction of dimensions to apply rotary embeddings to, defaults to 0.25
+        parallel_residual (bool): Whether to use parallel residual connections, defaults to True
+        bias (bool): Whether to include bias terms in linear layers, defaults to True
+
+        # SAMBA-specific parameters
+        local_window (int): Size of sliding window for attention, -1 means full attention
+        mlp (bool): Whether to include MLP layers, defaults to True
+        full_per_layer (int): Number of tokens for full attention per layer
+        mb_per_layer (int): Number of Mamba layers per block
+        ret_per_layer (int): Number of RetNet layers per block
+        gla_per_layer (int): Number of GLA (Gated Linear Attention) layers per block
+        nope (bool): Skip certain layers if True
+        mamba (bool): Whether to use Mamba layers, defaults to False
+        sc_attn (bool): Whether to use short convolution in attention, defaults to False
+        rms_norm (bool): Use RMSNorm instead of LayerNorm, defaults to True
+
+        # Performance optimizations
+        residual_in_fp32 (bool): Keep residual connections in fp32, defaults to True
+        fused_add_norm (bool): Use fused add+norm operations, defaults to True
+        mamba_init (bool): Use specialized Mamba initialization, defaults to False
+        attn_layer_pos (str): Position of attention layers in architecture
+        n_query_groups (Optional[int]): Number of query groups for grouped-query attention
+        shared_attention_norm (bool): Share normalization across attention heads, defaults to False
+
+        _norm_class (str): Normalization layer class to use ("LayerNorm" or "RMSNorm")
+        norm_eps (float): Epsilon for normalization layers, defaults to 1e-5
+        _mlp_class (str): MLP implementation class ("GptNeoxMLP" or "LLaMAMLP")
+        intermediate_size (Optional[int]): Size of intermediate MLP layers
+        condense_ratio (int): Ratio for condensing layers, defaults to 1
+
+    Key Implementation Details from Paper:
+    - SAMBA combines Mamba, SWA and MLP through layer-wise interleaving
+    - Default sliding window size is 2048 tokens
+    - Uses PreNorm and skip connections for each intermediate layer
+    - Mamba layers capture time-dependent semantics and provide efficient decoding
+    - SWA handles complex non-Markovian dependencies
+    - MLPs handle factual knowledge recall
+    """
+    org: str = "samba-pytorch"
     name: str = "lit-GPT"
     block_size: int = 4096
     vocab_size: int = 50254
