@@ -11,7 +11,11 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
 
 from samba_pytorch import GPT, Config
-from samba_pytorch.utils import get_default_supported_precision
+from samba_pytorch.utils import (
+    activate_tf32_if_available,
+    get_default_supported_precision,
+    model_summary,
+)
 
 # Constants
 NUM_BATCHES = int(5e4)
@@ -35,7 +39,7 @@ DTYPE = (
     if "16" in PRECISION
     else torch.float32
 )
-
+activate_tf32_if_available()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _here = Path(__file__).resolve().parent
 
@@ -138,29 +142,28 @@ val_loader = cycle(val_loader)
 
 # Model initialization
 config = Config(
-    name="CustomSamba",
+    name="SmolCharSamba",
     block_size=SEQ_LEN,  # match sequence length
     vocab_size=256,  # byte-level tokenization
+    padding_multiple=64,
     n_layer=8,
     n_head=8,
     n_embd=512,
-    padding_multiple=64,
     mb_per_layer=2,
+    rotary_percentage=1.0,
     fused_add_norm=False,
     parallel_residual=False,
-    norm_eps=1e-5,
-    rotary_percentage=1.0,
-    _mlp_class="LLaMAMLP",
+    bias=False,
     _norm_class="RMSNorm",
+    norm_eps=1e-5,
+    _mlp_class="LLaMAMLP",
     intermediate_size=1536,
     mamba_init=True,
 )
+print(config)
 
 model = GPT(config).to(device)
-
-# Print model summary
-total_params = sum(p.numel() for p in model.parameters())
-print(f"Total parameters: {total_params:,}")
+model_summary(model, max_depth=5)
 
 # Optimizer and loss function
 optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, fused=torch.cuda.is_available())
@@ -237,4 +240,4 @@ for batch_num in trange(NUM_BATCHES, mininterval=10.0, desc="training"):
 
 print("Training complete")
 print(f"Last checkpoint step:\t{last_checkpoint_step}")
-print(f"Best loss:\t{best_loss.item():.3f}")
+print(f"Best loss:\t{best_loss:.3f}")

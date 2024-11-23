@@ -1,7 +1,8 @@
-import torch
-from torch import nn
-from einops import rearrange
 from typing import Optional, Tuple, Union
+
+import torch
+from einops import rearrange
+from torch import nn
 
 
 def maybe_align(x: torch.Tensor, alignment_in_bytes: int = 16) -> torch.Tensor:
