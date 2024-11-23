@@ -142,23 +142,25 @@ val_loader = cycle(val_loader)
 
 # Model initialization
 config = Config(
-    name="CustomSamba",
+    name="SmolCharSamba",
     block_size=SEQ_LEN,  # match sequence length
     vocab_size=256,  # byte-level tokenization
+    padding_multiple=64,
     n_layer=8,
     n_head=8,
     n_embd=512,
-    padding_multiple=64,
     mb_per_layer=2,
+    rotary_percentage=1.0,
     fused_add_norm=False,
     parallel_residual=False,
-    norm_eps=1e-5,
-    rotary_percentage=1.0,
-    _mlp_class="LLaMAMLP",
+    bias=False,
     _norm_class="RMSNorm",
+    norm_eps=1e-5,
+    _mlp_class="LLaMAMLP",
     intermediate_size=1536,
     mamba_init=True,
 )
+print(config)
 
 model = GPT(config).to(device)
 model_summary(model, max_depth=5)
