@@ -8,6 +8,7 @@ samba_pytorch/_version.py
 
 # outputs
 out/*
+examples/out/*
 
 # <<< END CUSTOM
 # Byte-compiled / optimized / DLL files
