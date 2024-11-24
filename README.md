@@ -35,7 +35,7 @@ A basic example of creating a random model from a named config:
 ```python
 from samba_pytorch import Config, GPT
 cfg = Config.from_name('Samba_421M_1k_window')
-print*(cfg)
+print(cfg)
 model = GPT(cfg)
 model
 ```
@@ -61,7 +61,6 @@ samba-pytorch/
 │   ├── config.py
 │   ├── modules/
 │   │   ├── __init__.py
-│   │   ├── fused_rotary_embedding.py
 │   │   ├── gla.py
 │   │   ├── mamba_simple.py
 │   │   ├── multiscale_retention.py
