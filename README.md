@@ -45,7 +45,7 @@ model
 A minimalist training script for a character-level language model on enwiki8:
 
 ```python
-python train.py
+python examples/train.py
 ```
 
 Credit to [nGPT-pytorch](https://github.com/lucidrains/nGPT-pytorch) for the enwik8 data set and the training script, which has been adapted for this repo.
