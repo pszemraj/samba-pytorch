@@ -1,20 +1,21 @@
 import json
 from pathlib import Path
 
+import fire
 import torch
 import torch.nn as nn
+from datasets import load_dataset
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
-from datasets import load_dataset
 from tqdm import trange
 
 from samba_pytorch import GPT, Config
+from samba_pytorch.tokenizer import Tokenizer
 from samba_pytorch.utils import (
     activate_tf32_if_available,
     get_default_supported_precision,
     model_summary,
 )
-from samba_pytorch.tokenizer import Tokenizer
 
 # Constants
 NUM_BATCHES = int(5e4)
@@ -23,7 +24,7 @@ GRAD_ACCUM_EVERY = 4
 LEARNING_RATE = 1e-3
 PRINT_EVERY = 10
 VALIDATE_EVERY = 100
-PRIME_LENGTH = 32  # Reduced from 128 to match what's working
+PRIME_LENGTH = 32
 GENERATE_EVERY = 500
 GENERATE_LENGTH = 512
 SEQ_LEN = 512
@@ -197,16 +198,29 @@ class WikiTextDataset(Dataset):
         )
 
 
-def main():
+def main(
+    tokenizer_dir,
+    dataset_name: str = "pszemraj/simple_wikipedia_LM",
+    dataset_config: str = "default",
+    ):
+    """
+    Main function for training a language model using a specified tokenizer and dataset.
+
+    Args:
+        tokenizer_dir (str): Directory path where the tokenizer checkpoint is stored.
+        dataset_name (str, optional): Name of the dataset to load. Defaults to "pszemraj/simple_wikipedia_LM".
+        dataset_config (str, optional): Configuration for the dataset. Defaults to "default".
+    """
+    tokenizer_dir = Path(tokenizer_dir)
+    assert tokenizer_dir.is_dir(), f"{tokenizer_dir} is not a directory"
+
     # Load dataset
-    print("Loading dataset...")
-    ds = load_dataset("pszemraj/simple_wikipedia_LM", "default")
+    print(f"Loading dataset... {dataset_name} {dataset_config}")
+    ds = load_dataset(dataset_name, dataset_config)
 
     # Initialize tokenizer
     print("Initializing tokenizer...")
-    tokenizer = Tokenizer(
-        _here.parent / "scratch"
-    )  # Loading tokenizer from scratch directory
+    tokenizer = Tokenizer(tokenizer_dir)
 
     # Dataset preparation
     train_dataset = WikiTextDataset(ds["train"], tokenizer, SEQ_LEN)
@@ -357,4 +371,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)
