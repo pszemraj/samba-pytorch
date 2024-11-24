@@ -68,6 +68,7 @@ class Config:
     - SWA handles complex non-Markovian dependencies
     - MLPs handle factual knowledge recall
     """
+
     org: str = "samba-pytorch"
     name: str = "lit-GPT"
     block_size: int = 4096
